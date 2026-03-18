@@ -1,5 +1,38 @@
 package annotate
 
+type StyleFunc func(string) string
+
+type Style struct {
+	LineNumber  StyleFunc
+	Separator   StyleFunc
+	SpanCode    StyleFunc
+	NonSpanCode StyleFunc
+	Marker      StyleFunc
+	LabelText   StyleFunc
+}
+
+type LabelStyle struct {
+	LineNumber StyleFunc
+	Separator  StyleFunc
+	SpanCode   StyleFunc
+	Marker     StyleFunc
+	LabelText  StyleFunc
+}
+
+func applyStyle(s string, fn StyleFunc) string {
+	if fn == nil || s == "" {
+		return s
+	}
+	return fn(s)
+}
+
+func resolveStyle(s string, labelStyle, globalStyle StyleFunc) string {
+	if labelStyle != nil {
+		return applyStyle(s, labelStyle)
+	}
+	return applyStyle(s, globalStyle)
+}
+
 func ansiStyle(code string) StyleFunc {
 	return func(s string) string {
 		return "\033[" + code + "m" + s + "\033[0m"
@@ -56,14 +89,6 @@ var LabelStyleInfo = LabelStyle{
 var LabelStyleHint = LabelStyle{
 	Marker:    Dim,
 	LabelText: Dim,
-}
-
-type Option func(*Renderer)
-
-func WithStyle(s Style) Option {
-	return func(r *Renderer) {
-		r.Style = s
-	}
 }
 
 func ComposeStyles(fns ...StyleFunc) StyleFunc {

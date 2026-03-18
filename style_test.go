@@ -106,14 +106,55 @@ func TestLabelStylePresets_Output(t *testing.T) {
 	assert.Equal(t, "\033[2mtest\033[0m", LabelStyleHint.LabelText("test"))
 }
 
-func TestWithStyle(t *testing.T) {
-	r := New(WithStyle(DefaultStyle))
-	assert.NotNil(t, r.Style.LineNumber)
-	assert.NotNil(t, r.Style.Separator)
+func TestApplyStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+
+	tests := []struct {
+		name     string
+		s        string
+		fn       StyleFunc
+		expected string
+	}{
+		{"nil func passthrough", "hello", nil, "hello"},
+		{"applies func", "hello", bracket, "[hello]"},
+		{"empty string skipped", "", bracket, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, applyStyle(tt.s, tt.fn))
+		})
+	}
 }
 
-func TestNewWithoutOptions(t *testing.T) {
-	r := New()
-	assert.Nil(t, r.Style.LineNumber)
-	assert.Nil(t, r.Style.Separator)
+func TestApplyStyle_EmptyStringDoesNotCallFunc(t *testing.T) {
+	called := false
+	fn := StyleFunc(func(s string) string {
+		called = true
+		return s
+	})
+	applyStyle("", fn)
+	assert.False(t, called)
+}
+
+func TestResolveStyle(t *testing.T) {
+	global := StyleFunc(func(s string) string { return "G(" + s + ")" })
+	label := StyleFunc(func(s string) string { return "L(" + s + ")" })
+
+	tests := []struct {
+		name        string
+		labelStyle  StyleFunc
+		globalStyle StyleFunc
+		input       string
+		expected    string
+	}{
+		{"label wins over global", label, global, "x", "L(x)"},
+		{"global used when label nil", nil, global, "x", "G(x)"},
+		{"passthrough when both nil", nil, nil, "x", "x"},
+		{"empty string skipped", label, global, "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, resolveStyle(tt.input, tt.labelStyle, tt.globalStyle))
+		})
+	}
 }
