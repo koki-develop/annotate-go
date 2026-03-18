@@ -250,12 +250,16 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 			leading := strings.Repeat(" ", leadingWidth)
 			markers := strings.Repeat(string(lbl.label.Marker), markerWidth)
 
+			styledMarkers := resolveStyle(markers, lbl.label.Style.Marker, r.Style.Marker)
+			styledSep := resolveStyle("|", lbl.label.Style.Separator, r.Style.Separator)
+
 			if lbl.isLastLine && lbl.label.Text != "" {
-				if _, err := fmt.Fprintf(w, "%s | %s%s %s\n", padding, leading, markers, lbl.label.Text); err != nil {
+				styledText := resolveStyle(lbl.label.Text, lbl.label.Style.LabelText, r.Style.LabelText)
+				if _, err := fmt.Fprintf(w, "%s %s %s%s %s\n", padding, styledSep, leading, styledMarkers, styledText); err != nil {
 					return err
 				}
 			} else {
-				if _, err := fmt.Fprintf(w, "%s | %s%s\n", padding, leading, markers); err != nil {
+				if _, err := fmt.Fprintf(w, "%s %s %s%s\n", padding, styledSep, leading, styledMarkers); err != nil {
 					return err
 				}
 			}

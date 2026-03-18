@@ -415,6 +415,41 @@ func TestResolveStyle(t *testing.T) {
 	}
 }
 
+func TestRender_MarkerLineStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+
+	r := New()
+	r.Style = Style{
+		Marker:    bracket,
+		LabelText: bracket,
+	}
+	src := []byte("foo")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "label"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | foo\n  | [---] [label]\n", got)
+}
+
+func TestRender_MarkerLineStyle_LabelOverride(t *testing.T) {
+	global := StyleFunc(func(s string) string { return "G(" + s + ")" })
+	local := StyleFunc(func(s string) string { return "L(" + s + ")" })
+
+	r := New()
+	r.Style = Style{Marker: global, LabelText: global}
+	src := []byte("foo")
+	labels := []Label{
+		{
+			Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "label",
+			Style: LabelStyle{Marker: local, LabelText: local},
+		},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | foo\n  | L(---) L(label)\n", got)
+}
+
 func TestRender_MultipleLinesNoLabels(t *testing.T) {
 	r := New()
 	src := []byte("foo\nbar\nbaz")
