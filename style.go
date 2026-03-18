@@ -61,34 +61,49 @@ func ansiStyle(code string) StyleFunc {
 	}
 }
 
-// Built-in ANSI text attribute [StyleFunc] variables.
 var (
-	Bold      = ansiStyle("1")
-	Dim       = ansiStyle("2")
-	Italic    = ansiStyle("3")
+	// Bold applies ANSI bold styling.
+	Bold = ansiStyle("1")
+	// Dim applies ANSI dim (faint) styling.
+	Dim = ansiStyle("2")
+	// Italic applies ANSI italic styling.
+	Italic = ansiStyle("3")
+	// Underline applies ANSI underline styling.
 	Underline = ansiStyle("4")
 )
 
-// Built-in ANSI foreground color [StyleFunc] variables.
 var (
-	FgRed     = ansiStyle("31")
-	FgGreen   = ansiStyle("32")
-	FgYellow  = ansiStyle("33")
-	FgBlue    = ansiStyle("34")
+	// FgRed applies ANSI red foreground color.
+	FgRed = ansiStyle("31")
+	// FgGreen applies ANSI green foreground color.
+	FgGreen = ansiStyle("32")
+	// FgYellow applies ANSI yellow foreground color.
+	FgYellow = ansiStyle("33")
+	// FgBlue applies ANSI blue foreground color.
+	FgBlue = ansiStyle("34")
+	// FgMagenta applies ANSI magenta foreground color.
 	FgMagenta = ansiStyle("35")
-	FgCyan    = ansiStyle("36")
-	FgWhite   = ansiStyle("37")
+	// FgCyan applies ANSI cyan foreground color.
+	FgCyan = ansiStyle("36")
+	// FgWhite applies ANSI white foreground color.
+	FgWhite = ansiStyle("37")
 )
 
-// Built-in ANSI background color [StyleFunc] variables.
 var (
-	BgRed     = ansiStyle("41")
-	BgGreen   = ansiStyle("42")
-	BgYellow  = ansiStyle("43")
-	BgBlue    = ansiStyle("44")
+	// BgRed applies ANSI red background color.
+	BgRed = ansiStyle("41")
+	// BgGreen applies ANSI green background color.
+	BgGreen = ansiStyle("42")
+	// BgYellow applies ANSI yellow background color.
+	BgYellow = ansiStyle("43")
+	// BgBlue applies ANSI blue background color.
+	BgBlue = ansiStyle("44")
+	// BgMagenta applies ANSI magenta background color.
 	BgMagenta = ansiStyle("45")
-	BgCyan    = ansiStyle("46")
-	BgWhite   = ansiStyle("47")
+	// BgCyan applies ANSI cyan background color.
+	BgCyan = ansiStyle("46")
+	// BgWhite applies ANSI white background color.
+	BgWhite = ansiStyle("47")
 )
 
 // DefaultStyle is a [Style] preset that dims line numbers and separators.
