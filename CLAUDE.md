@@ -32,21 +32,22 @@ Single package (`package annotate`), three files:
 
 - `annotate.go` — rendering pipeline (`Renderer`, `Render`, `Write`)
 - `style.go` — style type definitions (`StyleFunc`, `Style`, `LabelStyle`), ANSI StyleFunc variables, presets, `ComposeStyles`
-- `option.go` — functional options (`Option`, `WithStyle`)
+- `option.go` — functional options (`Option`, `WithStyle`, `WithBefore`, `WithAfter`)
 
 ### Rendering pipeline
 
 1. **Parse lines** — split source bytes by `\n`, record byte offsets, expand tabs (fixed width 4)
 2. **Map labels to lines** — for each label, determine which lines its Span covers; multi-line spans are split into per-line sub-spans
-3. **Generate output** — for each line, emit `{line number} | {text}` followed by marker lines for any labels on that line. Style is applied after all width/position calculations.
+3. **Compute visible lines** — only lines covered by labels (plus Before/After context) are included; if no labels, output is empty
+4. **Generate output** — for each visible line, emit `{line number} | {text}` followed by marker lines for any labels on that line. Non-contiguous line groups are separated by a styled `...` ellipsis. Style is applied after all width/position calculations. Line number width is based on the maximum visible line number.
 
 ### Key types
 
 - `Span` — byte offset range `[Start, End)` into source
-- `Label` — a Span + marker character + annotation text + optional `LabelStyle`
-- `Renderer` — entry point; `Render()` returns string, `Write()` writes to `io.Writer`
+- `Label` — a Span + marker character + annotation text + optional `LabelStyle` + optional `Before`/`After` (`*int`) context override
+- `Renderer` — entry point; `Render()` returns string, `Write()` writes to `io.Writer`. Has `Before`/`After` fields for default context lines.
 - `StyleFunc` — `func(string) string` callback for styling output elements
-- `Style` — global style config (6 elements: LineNumber, Separator, SpanCode, NonSpanCode, Marker, LabelText)
-- `LabelStyle` — per-label style override (5 elements, no NonSpanCode)
+- `Style` — global style config (7 elements: LineNumber, Separator, SpanCode, NonSpanCode, Marker, LabelText, Ellipsis)
+- `LabelStyle` — per-label style override (5 elements, no NonSpanCode or Ellipsis)
 
 Display width (CJK wide characters) is handled via `go-runewidth`. Marker positioning uses display columns, not byte counts.

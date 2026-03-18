@@ -1,12 +1,15 @@
 package annotate
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func intPtr(n int) *int { return &n }
 
 func TestRender_EmptySource(t *testing.T) {
 	r := New()
@@ -19,8 +22,7 @@ func TestRender_SingleLineNoLabels(t *testing.T) {
 	r := New()
 	got, err := r.Render([]byte("foo: bar"), nil)
 	require.NoError(t, err)
-	assert.Equal(t, `1 | foo: bar
-`, got)
+	assert.Equal(t, "", got)
 }
 
 func TestRender_SingleLineWithLabel(t *testing.T) {
@@ -210,23 +212,9 @@ func TestRender_TrailingNewline(t *testing.T) {
 		src      string
 		expected string
 	}{
-		{
-			"single line with newline",
-			"foo\n",
-			`1 | foo
-`,
-		},
-		{
-			"two lines with double newline",
-			"foo\n\n",
-			"1 | foo\n" +
-				"2 | \n",
-		},
-		{
-			"just a newline",
-			"\n",
-			"1 | \n",
-		},
+		{"single line with newline", "foo\n", ""},
+		{"two lines with double newline", "foo\n\n", ""},
+		{"just a newline", "\n", ""},
 	}
 
 	for _, tt := range tests {
@@ -301,17 +289,7 @@ func TestRender_MultiDigitLineNumbers(t *testing.T) {
 	src := []byte("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
 	got, err := r.Render(src, nil)
 	require.NoError(t, err)
-	assert.Equal(t, ` 1 | 1
- 2 | 2
- 3 | 3
- 4 | 4
- 5 | 5
- 6 | 6
- 7 | 7
- 8 | 8
- 9 | 9
-10 | 10
-`, got)
+	assert.Equal(t, "", got)
 }
 
 func TestRender_MultiDigitLineNumbers_WithLabel(t *testing.T) {
@@ -322,18 +300,7 @@ func TestRender_MultiDigitLineNumbers_WithLabel(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, ` 1 | 1
- 2 | 2
- 3 | 3
- 4 | 4
- 5 | 5
- 6 | 6
- 7 | 7
- 8 | 8
- 9 | 9
-10 | 10
-   | -- last line
-`, got)
+	assert.Equal(t, "10 | 10\n   | -- last line\n", got)
 }
 
 func TestRender_ArbitraryMarker(t *testing.T) {
@@ -406,9 +373,12 @@ func TestRender_CodeLineStyle_LineNumberAndSeparator(t *testing.T) {
 		Separator:  bracket,
 	}
 	src := []byte("foo")
-	got, err := r.Render(src, nil)
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "x"},
+	}
+	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "[1] [|] foo\n", got)
+	assert.Equal(t, "[1] [|] foo\n  [|] --- x\n", got)
 }
 
 func TestRender_CodeLineStyle_LabelOverridesLineNumber(t *testing.T) {
@@ -429,15 +399,12 @@ func TestRender_CodeLineStyle_LabelOverridesLineNumber(t *testing.T) {
 	assert.Equal(t, "L(1) L(|) foo\n  L(|) --- x\n", got)
 }
 
-func TestRender_MultipleLinesNoLabels(t *testing.T) {
+func TestRender_NoLabelsEmptyOutput(t *testing.T) {
 	r := New()
 	src := []byte("foo\nbar\nbaz")
 	got, err := r.Render(src, nil)
 	require.NoError(t, err)
-	assert.Equal(t, `1 | foo
-2 | bar
-3 | baz
-`, got)
+	assert.Equal(t, "", got)
 }
 
 func TestRender_SpanCodeStyle(t *testing.T) {
@@ -472,12 +439,17 @@ func TestRender_NonSpanCodeStyle(t *testing.T) {
 func TestRender_NoLabelLine_NonSpanCodeStyle(t *testing.T) {
 	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
 
-	r := New()
+	r := New(WithAfter(1))
 	r.Style = Style{NonSpanCode: bracket}
-	src := []byte("foo")
-	got, err := r.Render(src, nil)
+	src := []byte("foo\nbar")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "x"},
+	}
+	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "1 | [foo]\n", got)
+	// Line 1 has label so "foo" is SpanCode (no SpanCode style set, passthrough).
+	// Line 2 is context (no label), so "bar" gets NonSpanCode style.
+	assert.Equal(t, "1 | foo\n  | --- x\n2 | [bar]\n", got)
 }
 
 func TestRender_SpanCodeStyle_MultipleLabels(t *testing.T) {
@@ -532,12 +504,10 @@ func TestRender_FullStyleIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Line 1 has a label on "bar" (bytes 5-8)
-	// Line 2 has no label
-	// Marker line: padding (unstyled spaces), styled separator, leading spaces, styled markers, styled text
+	// Line 2 has no label and is filtered out
 	expected := "" +
 		"<ln:1> <sep:|> <non:foo: ><span:bar>\n" +
-		"  <sep:|>      <mark:---> <text:value>\n" +
-		"<ln:2> <sep:|> <non:baz: qux>\n"
+		"  <sep:|>      <mark:---> <text:value>\n"
 	assert.Equal(t, expected, got)
 }
 
@@ -604,5 +574,220 @@ func TestRender_StyleIntegration_MultiLineSpan(t *testing.T) {
 		"  | [---]\n" +
 		"3 | [cc]c\n" +
 		"  | [--] spans three\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_FilterLabelsOnly(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "first"},
+		{Span: Span{Start: 16, End: 19}, Marker: MarkerTilde, Text: "last"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | aaa\n  | --- first\n...\n5 | eee\n  | ~~~ last\n", got)
+}
+
+func TestRender_FilterWithBefore(t *testing.T) {
+	r := New(WithBefore(1))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "middle"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "2 | bbb\n3 | ccc\n  | --- middle\n", got)
+}
+
+func TestRender_FilterWithAfter(t *testing.T) {
+	r := New(WithAfter(1))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "middle"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "3 | ccc\n  | --- middle\n4 | ddd\n", got)
+}
+
+func TestRender_FilterWithBeforeAndAfter(t *testing.T) {
+	r := New(WithBefore(1), WithAfter(1))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "middle"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "2 | bbb\n3 | ccc\n  | --- middle\n4 | ddd\n", got)
+}
+
+func TestRender_FilterPerLabelOverride(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "with context", Before: intPtr(1)},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "2 | bbb\n3 | ccc\n  | --- with context\n", got)
+}
+
+func TestRender_FilterPerLabelOverrideZero(t *testing.T) {
+	r := New(WithBefore(2))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "no context", Before: intPtr(0)},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "3 | ccc\n  | --- no context\n", got)
+}
+
+func TestRender_FilterEllipsisWideLineNumbers(t *testing.T) {
+	r := New()
+	var src []byte
+	for i := 1; i <= 100; i++ {
+		if i > 1 {
+			src = append(src, '\n')
+		}
+		src = append(src, []byte(fmt.Sprintf("line%d", i))...)
+	}
+	labels := []Label{
+		{Span: Span{Start: 0, End: 5}, Marker: MarkerDash, Text: "first"},
+		{Span: Span{Start: len(src) - 7, End: len(src)}, Marker: MarkerTilde, Text: "last"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	// Line number width is 3 (max visible is 100). "..." is exactly 3 chars.
+	expected := "" +
+		"  1 | line1\n" +
+		"    | ----- first\n" +
+		"...\n" +
+		"100 | line100\n" +
+		"    | ~~~~~~~ last\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_FilterEllipsisStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+	r := New(WithStyle(Style{Ellipsis: bracket}))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "first"},
+		{Span: Span{Start: 16, End: 19}, Marker: MarkerTilde, Text: "last"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | aaa\n  | --- first\n[...]\n5 | eee\n  | ~~~ last\n", got)
+}
+
+func TestRender_FilterAdjacentLabels(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "first"},
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerTilde, Text: "second"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | aaa\n  | --- first\n2 | bbb\n  | ~~~ second\n", got)
+}
+
+func TestRender_FilterOverlappingContext(t *testing.T) {
+	r := New(WithBefore(1), WithAfter(1))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "second"},
+		{Span: Span{Start: 12, End: 15}, Marker: MarkerTilde, Text: "fourth"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | aaa\n2 | bbb\n  | --- second\n3 | ccc\n4 | ddd\n  | ~~~ fourth\n5 | eee\n", got)
+}
+
+func TestRender_FilterNoLeadingTrailingEllipsis(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "middle"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "3 | ccc\n  | --- middle\n", got)
+}
+
+func TestRender_FilterLineNumberWidth(t *testing.T) {
+	r := New()
+	src := []byte("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12")
+	labels := []Label{
+		{Span: Span{Start: 2, End: 3}, Marker: MarkerDash, Text: "line 2"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "2 | 2\n  | - line 2\n", got)
+}
+
+func TestRender_FilterMultiLineSpanWithContext(t *testing.T) {
+	r := New(WithBefore(1), WithAfter(1))
+	src := []byte("aaa\nbbb\nccc\nddd\neee\nfff")
+	// Label spans lines 3-4 (bytes 8-15: "ccc\nddd")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 15}, Marker: MarkerDash, Text: "two lines"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	// Before=1 applies to line 3 → line 2 visible
+	// After=1 applies to line 4 → line 5 visible
+	expected := "" +
+		"2 | bbb\n" +
+		"3 | ccc\n" +
+		"  | ---\n" +
+		"4 | ddd\n" +
+		"  | --- two lines\n" +
+		"5 | eee\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_FilterPerLabelNegativeClamped(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc")
+	labels := []Label{
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "middle", Before: intPtr(-3), After: intPtr(-5)},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	// Negative values clamped to 0, so only the labeled line is shown
+	assert.Equal(t, "2 | bbb\n  | --- middle\n", got)
+}
+
+func TestRender_FilterPerLabelAfterOverride(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "with after", After: intPtr(2)},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "2 | bbb\n  | --- with after\n3 | ccc\n4 | ddd\n", got)
+}
+
+func TestRender_FilterMixedOverrides(t *testing.T) {
+	r := New(WithBefore(1))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "override", Before: intPtr(0)},
+		{Span: Span{Start: 12, End: 15}, Marker: MarkerTilde, Text: "default"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	// First label: Before overridden to 0, only line 2
+	// Second label: Before=1 from renderer default, lines 3 and 4
+	expected := "" +
+		"2 | bbb\n" +
+		"  | --- override\n" +
+		"3 | ccc\n" +
+		"4 | ddd\n" +
+		"  | ~~~ default\n"
 	assert.Equal(t, expected, got)
 }

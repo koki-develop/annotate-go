@@ -67,6 +67,10 @@ type Label struct {
 	Marker LabelMarker
 	Text   string
 	Style  LabelStyle
+	// Before overrides [Renderer.Before] for this label. Nil falls back to the Renderer default.
+	Before *int
+	// After overrides [Renderer.After] for this label. Nil falls back to the Renderer default.
+	After *int
 }
 
 // Renderer renders annotated source code. Use [New] to create a Renderer.
@@ -74,6 +78,11 @@ type Renderer struct {
 	// Style controls the visual styling applied to each element of the output.
 	// If zero, no styling is applied.
 	Style Style
+
+	// Before is the default number of lines to display before each labeled line.
+	Before int
+	// After is the default number of lines to display after each labeled line.
+	After int
 }
 
 // New creates a new [Renderer] with the given options.
@@ -268,13 +277,36 @@ func segmentCodeLine(ln line, ll []lineLabel, globalSpanCode, globalNonSpanCode 
 	return buf.String()
 }
 
+func computeVisibleLines(lines []line, labelMap map[int][]lineLabel, defaultBefore, defaultAfter int) []bool {
+	visible := make([]bool, len(lines))
+	for li, lls := range labelMap {
+		for _, ll := range lls {
+			before := defaultBefore
+			after := defaultAfter
+			if ll.label.Before != nil {
+				before = max(0, *ll.label.Before)
+			}
+			if ll.label.After != nil {
+				after = max(0, *ll.label.After)
+			}
+			low := max(0, li-before)
+			high := min(len(lines)-1, li+after)
+			for j := low; j <= high; j++ {
+				visible[j] = true
+			}
+		}
+	}
+	return visible
+}
+
 // Write renders the annotated source code and writes the output to w.
 //
 // Each label's [Span] must satisfy: 0 <= Start < End <= len(src).
 // An error is returned if any label has an invalid span or if writing to w fails.
-// If both src and labels are empty, Write returns nil without writing anything.
+// Only lines covered by labels (plus surrounding Before/After context lines) are output.
+// If labels is empty, nothing is written.
 func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
-	if len(src) == 0 && len(labels) == 0 {
+	if len(labels) == 0 {
 		return nil
 	}
 
@@ -300,12 +332,38 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	}
 
 	labelMap := mapLabelsToLines(lines, labels)
+	visible := computeVisibleLines(lines, labelMap, r.Before, r.After)
 
-	maxLineNum := lines[len(lines)-1].number
+	maxLineNum := 0
+	for li, ln := range lines {
+		if visible[li] && ln.number > maxLineNum {
+			maxLineNum = ln.number
+		}
+	}
+	if maxLineNum == 0 {
+		return nil
+	}
 	lineNumWidth := len(fmt.Sprintf("%d", maxLineNum))
 	padding := strings.Repeat(" ", lineNumWidth)
 
+	prevVisibleIdx := -1
 	for li, ln := range lines {
+		if !visible[li] {
+			continue
+		}
+
+		if prevVisibleIdx >= 0 && li > prevVisibleIdx+1 {
+			ellipsis := "..."
+			if lineNumWidth > 3 {
+				ellipsis += strings.Repeat(" ", lineNumWidth-3)
+			}
+			styledEllipsis := applyStyle(ellipsis, r.Style.Ellipsis)
+			if _, err := fmt.Fprintf(w, "%s\n", styledEllipsis); err != nil {
+				return err
+			}
+		}
+		prevVisibleIdx = li
+
 		ll := labelMap[li]
 		if len(ll) > 0 {
 			sort.Slice(ll, func(i, j int) bool {
@@ -320,7 +378,6 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 
 		lineNumStr := fmt.Sprintf("%*d", lineNumWidth, ln.number)
 
-		// If this line has labels, use the first label's style for line number and separator
 		var labelLineNumStyle, labelSepStyle StyleFunc
 		if len(ll) > 0 {
 			labelLineNumStyle = ll[0].label.Style.LineNumber

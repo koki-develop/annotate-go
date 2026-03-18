@@ -21,6 +21,8 @@ type Style struct {
 	Marker StyleFunc
 	// LabelText styles the descriptive text on annotation lines.
 	LabelText StyleFunc
+	// Ellipsis styles the "..." ellipsis indicator shown between non-contiguous line groups.
+	Ellipsis StyleFunc
 }
 
 // LabelStyle provides per-label style overrides. Non-nil fields take precedence
@@ -110,6 +112,7 @@ var (
 var DefaultStyle = Style{
 	LineNumber: Dim,
 	Separator:  Dim,
+	Ellipsis:   Dim,
 }
 
 // LabelStyleError is a [LabelStyle] preset for error diagnostics.
