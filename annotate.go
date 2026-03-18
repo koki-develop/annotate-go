@@ -1,3 +1,28 @@
+// Package annotate renders annotated source code with line numbers and labeled markers.
+//
+// It is designed for displaying diagnostic messages (errors, warnings, hints) that
+// point to specific byte ranges within source code, similar to the output of compilers
+// like rustc or Go's go vet.
+//
+// Basic usage:
+//
+//	src := []byte(`name = "Alice"
+//	age = 30
+//	`)
+//	labels := []annotate.Label{
+//		{Span: annotate.Span{Start: 0, End: 14}, Marker: annotate.MarkerDash, Text: "string field"},
+//		{Span: annotate.Span{Start: 15, End: 23}, Marker: annotate.MarkerTilde, Text: "integer field"},
+//	}
+//	r := annotate.New()
+//	output, _ := r.Render(src, labels)
+//	fmt.Print(output)
+//
+// Output:
+//
+//	1 | name = "Alice"
+//	  | -------------- string field
+//	2 | age = 30
+//	  | ~~~~~~~~ integer field
 package annotate
 
 import (
@@ -10,19 +35,33 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+// Span represents a half-open byte range [Start, End) within the source code.
+// Both Start and End are zero-based byte offsets. Start must be less than End.
 type Span struct {
 	Start int
 	End   int
 }
 
+// LabelMarker is the character used to underline the annotated span.
+// Any rune can be used as a marker, but the package provides common presets.
 type LabelMarker rune
 
 const (
-	MarkerDash  LabelMarker = '-'
+	// MarkerDash uses '-' as the marker character.
+	MarkerDash LabelMarker = '-'
+	// MarkerTilde uses '~' as the marker character.
 	MarkerTilde LabelMarker = '~'
+	// MarkerCaret uses '^' as the marker character.
 	MarkerCaret LabelMarker = '^'
 )
 
+// Label defines an annotation for a byte range within the source code.
+// Each label points to a [Span], uses a [LabelMarker] to underline that span,
+// and optionally displays descriptive text after the markers.
+//
+// If Marker is zero, [MarkerDash] is used by default.
+// If Style is set, its non-nil fields override the global [Style] for this label.
+// Labels may span multiple lines; the text is displayed on the last line of the span.
 type Label struct {
 	Span   Span
 	Marker LabelMarker
@@ -30,10 +69,14 @@ type Label struct {
 	Style  LabelStyle
 }
 
+// Renderer renders annotated source code. Use [New] to create a Renderer.
 type Renderer struct {
+	// Style controls the visual styling applied to each element of the output.
+	// If zero, no styling is applied.
 	Style Style
 }
 
+// New creates a new [Renderer] with the given options.
 func New(opts ...Option) *Renderer {
 	r := &Renderer{}
 	for _, opt := range opts {
@@ -42,6 +85,10 @@ func New(opts ...Option) *Renderer {
 	return r
 }
 
+// Render renders the annotated source code and returns it as a string.
+//
+// Each label's [Span] must satisfy: 0 <= Start < End <= len(src).
+// An error is returned if any label has an invalid span.
 func (r *Renderer) Render(src []byte, labels []Label) (string, error) {
 	var buf strings.Builder
 	if err := r.Write(&buf, src, labels); err != nil {
@@ -221,6 +268,11 @@ func segmentCodeLine(ln line, ll []lineLabel, globalSpanCode, globalNonSpanCode 
 	return buf.String()
 }
 
+// Write renders the annotated source code and writes the output to w.
+//
+// Each label's [Span] must satisfy: 0 <= Start < End <= len(src).
+// An error is returned if any label has an invalid span or if writing to w fails.
+// If both src and labels are empty, Write returns nil without writing anything.
 func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	if len(src) == 0 && len(labels) == 0 {
 		return nil
