@@ -38,3 +38,29 @@ func TestAnsiStyleFuncs(t *testing.T) {
 		})
 	}
 }
+
+func TestComposeStyles(t *testing.T) {
+	t.Run("composes multiple styles", func(t *testing.T) {
+		fn := ComposeStyles(FgRed, Bold)
+		got := fn("hello")
+		assert.Equal(t, "\033[31m\033[1mhello\033[0m\033[0m", got)
+	})
+
+	t.Run("single style", func(t *testing.T) {
+		fn := ComposeStyles(Bold)
+		got := fn("hello")
+		assert.Equal(t, "\033[1mhello\033[0m", got)
+	})
+
+	t.Run("no styles returns passthrough", func(t *testing.T) {
+		fn := ComposeStyles()
+		got := fn("hello")
+		assert.Equal(t, "hello", got)
+	})
+
+	t.Run("three styles", func(t *testing.T) {
+		fn := ComposeStyles(FgRed, Bold, Underline)
+		got := fn("hello")
+		assert.Equal(t, "\033[31m\033[1m\033[4mhello\033[0m\033[0m\033[0m", got)
+	})
+}

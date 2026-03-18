@@ -32,3 +32,12 @@ var (
 	BgCyan    = ansiStyle("46")
 	BgWhite   = ansiStyle("47")
 )
+
+func ComposeStyles(fns ...StyleFunc) StyleFunc {
+	return func(s string) string {
+		for i := len(fns) - 1; i >= 0; i-- {
+			s = fns[i](s)
+		}
+		return s
+	}
+}
