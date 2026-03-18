@@ -64,3 +64,44 @@ func TestComposeStyles(t *testing.T) {
 		assert.Equal(t, "\033[31m\033[1m\033[4mhello\033[0m\033[0m\033[0m", got)
 	})
 }
+
+func TestDefaultStyle(t *testing.T) {
+	assert.NotNil(t, DefaultStyle.LineNumber)
+	assert.NotNil(t, DefaultStyle.Separator)
+	assert.Nil(t, DefaultStyle.SpanCode)
+	assert.Nil(t, DefaultStyle.NonSpanCode)
+	assert.Nil(t, DefaultStyle.Marker)
+	assert.Nil(t, DefaultStyle.LabelText)
+	assert.Equal(t, "\033[2mtest\033[0m", DefaultStyle.LineNumber("test"))
+	assert.Equal(t, "\033[2mtest\033[0m", DefaultStyle.Separator("test"))
+}
+
+func TestLabelStylePresets(t *testing.T) {
+	tests := []struct {
+		name  string
+		style LabelStyle
+	}{
+		{"Error", LabelStyleError},
+		{"Warning", LabelStyleWarning},
+		{"Info", LabelStyleInfo},
+		{"Hint", LabelStyleHint},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotNil(t, tt.style.Marker)
+			assert.NotNil(t, tt.style.LabelText)
+			assert.Nil(t, tt.style.SpanCode)
+		})
+	}
+}
+
+func TestLabelStylePresets_Output(t *testing.T) {
+	assert.Equal(t, "\033[31mtest\033[0m", LabelStyleError.Marker("test"))
+	assert.Equal(t, "\033[31m\033[1mtest\033[0m\033[0m", LabelStyleError.LabelText("test"))
+	assert.Equal(t, "\033[33mtest\033[0m", LabelStyleWarning.Marker("test"))
+	assert.Equal(t, "\033[33mtest\033[0m", LabelStyleWarning.LabelText("test"))
+	assert.Equal(t, "\033[34mtest\033[0m", LabelStyleInfo.Marker("test"))
+	assert.Equal(t, "\033[34mtest\033[0m", LabelStyleInfo.LabelText("test"))
+	assert.Equal(t, "\033[2mtest\033[0m", LabelStyleHint.Marker("test"))
+	assert.Equal(t, "\033[2mtest\033[0m", LabelStyleHint.LabelText("test"))
+}

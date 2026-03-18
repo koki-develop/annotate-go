@@ -33,6 +33,31 @@ var (
 	BgWhite   = ansiStyle("47")
 )
 
+var DefaultStyle = Style{
+	LineNumber: Dim,
+	Separator:  Dim,
+}
+
+var LabelStyleError = LabelStyle{
+	Marker:    FgRed,
+	LabelText: ComposeStyles(FgRed, Bold),
+}
+
+var LabelStyleWarning = LabelStyle{
+	Marker:    FgYellow,
+	LabelText: FgYellow,
+}
+
+var LabelStyleInfo = LabelStyle{
+	Marker:    FgBlue,
+	LabelText: FgBlue,
+}
+
+var LabelStyleHint = LabelStyle{
+	Marker:    Dim,
+	LabelText: Dim,
+}
+
 func ComposeStyles(fns ...StyleFunc) StyleFunc {
 	return func(s string) string {
 		for i := len(fns) - 1; i >= 0; i-- {
