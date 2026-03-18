@@ -277,8 +277,15 @@ func segmentCodeLine(ln line, ll []lineLabel, globalSpanCode, globalNonSpanCode 
 	return buf.String()
 }
 
-func computeVisibleLines(lines []line, labelMap map[int][]lineLabel, defaultBefore, defaultAfter int) []bool {
-	visible := make([]bool, len(lines))
+type visibleLines struct {
+	flags  []bool
+	first  int // first visible line index (-1 if none)
+	last   int // last visible line index (-1 if none)
+	maxNum int // maximum visible line number
+}
+
+func computeVisibleLines(lines []line, labelMap map[int][]lineLabel, defaultBefore, defaultAfter int) visibleLines {
+	flags := make([]bool, len(lines))
 	for li, lls := range labelMap {
 		for _, ll := range lls {
 			before := defaultBefore
@@ -292,11 +299,25 @@ func computeVisibleLines(lines []line, labelMap map[int][]lineLabel, defaultBefo
 			low := max(0, li-before)
 			high := min(len(lines)-1, li+after)
 			for j := low; j <= high; j++ {
-				visible[j] = true
+				flags[j] = true
 			}
 		}
 	}
-	return visible
+
+	first, last := -1, -1
+	maxNum := 0
+	for li, ln := range lines {
+		if flags[li] {
+			if ln.number > maxNum {
+				maxNum = ln.number
+			}
+			if first < 0 {
+				first = li
+			}
+			last = li
+		}
+	}
+	return visibleLines{flags: flags, first: first, last: last, maxNum: maxNum}
 }
 
 // Write renders the annotated source code and writes the output to w.
@@ -339,29 +360,16 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	}
 
 	labelMap := mapLabelsToLines(lines, labels)
-	visible := computeVisibleLines(lines, labelMap, r.Before, r.After)
+	vis := computeVisibleLines(lines, labelMap, r.Before, r.After)
 
-	return r.writeOutput(w, lines, labelMap, visible)
+	return r.writeOutput(w, lines, labelMap, vis)
 }
 
-func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lineLabel, visible []bool) error {
-	maxLineNum := 0
-	firstVisible, lastVisible := -1, -1
-	for li, ln := range lines {
-		if visible[li] {
-			if ln.number > maxLineNum {
-				maxLineNum = ln.number
-			}
-			if firstVisible < 0 {
-				firstVisible = li
-			}
-			lastVisible = li
-		}
-	}
-	if maxLineNum == 0 {
+func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lineLabel, vis visibleLines) error {
+	if vis.maxNum == 0 {
 		return nil
 	}
-	lineNumWidth := len(fmt.Sprintf("%d", maxLineNum))
+	lineNumWidth := len(fmt.Sprintf("%d", vis.maxNum))
 	padding := strings.Repeat(" ", lineNumWidth)
 
 	writeEllipsis := func() error {
@@ -374,8 +382,7 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 		return err
 	}
 
-	// Leading ellipsis: there are non-visible lines before the first visible line.
-	if firstVisible > 0 {
+	if vis.first > 0 {
 		if err := writeEllipsis(); err != nil {
 			return err
 		}
@@ -383,7 +390,7 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 
 	prevVisibleIdx := -1
 	for li, ln := range lines {
-		if !visible[li] {
+		if !vis.flags[li] {
 			continue
 		}
 
@@ -422,43 +429,47 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 			return err
 		}
 
-		if len(ll) == 0 {
-			continue
-		}
-
-		for _, lbl := range ll {
-			expandedStart := ln.offsetMap[lbl.startInLine]
-			expandedEnd := ln.offsetMap[lbl.endInLine]
-			textBefore := ln.text[:expandedStart]
-			textInSpan := ln.text[expandedStart:expandedEnd]
-			leadingWidth := runewidth.StringWidth(textBefore)
-			markerWidth := runewidth.StringWidth(textInSpan)
-
-			leading := strings.Repeat(" ", leadingWidth)
-			markers := strings.Repeat(string(lbl.label.Marker), markerWidth)
-
-			styledMarkers := resolveStyle(markers, lbl.label.Style.Marker, r.Style.Marker)
-			styledSep := resolveStyle("|", lbl.label.Style.Separator, r.Style.Separator)
-
-			if lbl.isLastLine && lbl.label.Text != "" {
-				styledText := resolveStyle(lbl.label.Text, lbl.label.Style.LabelText, r.Style.LabelText)
-				if _, err := fmt.Fprintf(w, "%s %s %s%s %s\n", padding, styledSep, leading, styledMarkers, styledText); err != nil {
-					return err
-				}
-			} else {
-				if _, err := fmt.Fprintf(w, "%s %s %s%s\n", padding, styledSep, leading, styledMarkers); err != nil {
-					return err
-				}
+		if len(ll) > 0 {
+			if err := r.writeMarkerLines(w, padding, ln, ll); err != nil {
+				return err
 			}
 		}
 	}
 
-	// Trailing ellipsis: there are non-visible lines after the last visible line.
-	if lastVisible >= 0 && lastVisible < len(lines)-1 {
+	if vis.last >= 0 && vis.last < len(lines)-1 {
 		if err := writeEllipsis(); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func (r *Renderer) writeMarkerLines(w io.Writer, padding string, ln line, ll []lineLabel) error {
+	for _, lbl := range ll {
+		expandedStart := ln.offsetMap[lbl.startInLine]
+		expandedEnd := ln.offsetMap[lbl.endInLine]
+		textBefore := ln.text[:expandedStart]
+		textInSpan := ln.text[expandedStart:expandedEnd]
+		leadingWidth := runewidth.StringWidth(textBefore)
+		markerWidth := runewidth.StringWidth(textInSpan)
+
+		leading := strings.Repeat(" ", leadingWidth)
+		markers := strings.Repeat(string(lbl.label.Marker), markerWidth)
+
+		styledMarkers := resolveStyle(markers, lbl.label.Style.Marker, r.Style.Marker)
+		styledSep := resolveStyle("|", lbl.label.Style.Separator, r.Style.Separator)
+
+		if lbl.isLastLine && lbl.label.Text != "" {
+			styledText := resolveStyle(lbl.label.Text, lbl.label.Style.LabelText, r.Style.LabelText)
+			if _, err := fmt.Fprintf(w, "%s %s %s%s %s\n", padding, styledSep, leading, styledMarkers, styledText); err != nil {
+				return err
+			}
+		} else {
+			if _, err := fmt.Fprintf(w, "%s %s %s%s\n", padding, styledSep, leading, styledMarkers); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
