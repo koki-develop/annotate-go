@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0](https://github.com/koki-develop/annotate-go/compare/v0.0.1...v0.1.0) (2026-03-18)
+
+
+### Features
+
+* add line filtering to render only labeled lines with context ([48c3a28](https://github.com/koki-develop/annotate-go/commit/48c3a2878a437807eb52c5828ff0f92f0d56bed9))
+
 ## 0.0.1 (2026-03-18)
 
 
