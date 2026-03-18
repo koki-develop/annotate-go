@@ -9,7 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func intPtr(n int) *int { return &n }
+//go:fix inline
+func intPtr(n int) *int { return new(n) }
 
 func TestRender_EmptySource(t *testing.T) {
 	r := New()
@@ -627,7 +628,7 @@ func TestRender_FilterPerLabelOverride(t *testing.T) {
 	r := New()
 	src := []byte("aaa\nbbb\nccc\nddd\neee")
 	labels := []Label{
-		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "with context", Before: intPtr(1)},
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "with context", Before: new(1)},
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
@@ -638,7 +639,7 @@ func TestRender_FilterPerLabelOverrideZero(t *testing.T) {
 	r := New(WithBefore(2))
 	src := []byte("aaa\nbbb\nccc\nddd\neee")
 	labels := []Label{
-		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "no context", Before: intPtr(0)},
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "no context", Before: new(0)},
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
@@ -652,7 +653,7 @@ func TestRender_FilterEllipsisWideLineNumbers(t *testing.T) {
 		if i > 1 {
 			src = append(src, '\n')
 		}
-		src = append(src, []byte(fmt.Sprintf("line%d", i))...)
+		src = append(src, fmt.Appendf(nil, "line%d", i)...)
 	}
 	labels := []Label{
 		{Span: Span{Start: 0, End: 5}, Marker: MarkerDash, Text: "first"},
@@ -768,7 +769,7 @@ func TestRender_FilterPerLabelNegativeClamped(t *testing.T) {
 	r := New()
 	src := []byte("aaa\nbbb\nccc")
 	labels := []Label{
-		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "middle", Before: intPtr(-3), After: intPtr(-5)},
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "middle", Before: new(-3), After: new(-5)},
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
@@ -780,7 +781,7 @@ func TestRender_FilterPerLabelAfterOverride(t *testing.T) {
 	r := New()
 	src := []byte("aaa\nbbb\nccc\nddd\neee")
 	labels := []Label{
-		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "with after", After: intPtr(2)},
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "with after", After: new(2)},
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
@@ -791,7 +792,7 @@ func TestRender_FilterMixedOverrides(t *testing.T) {
 	r := New(WithBefore(1))
 	src := []byte("aaa\nbbb\nccc\nddd\neee")
 	labels := []Label{
-		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "override", Before: intPtr(0)},
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "override", Before: new(0)},
 		{Span: Span{Start: 12, End: 15}, Marker: MarkerTilde, Text: "default"},
 	}
 	got, err := r.Render(src, labels)
