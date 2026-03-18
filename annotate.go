@@ -73,6 +73,11 @@ type Label struct {
 	After *int
 }
 
+// SourceStyleFunc is a function that takes tab-expanded source code and returns
+// a styled version. The returned string may contain ANSI escape sequences.
+// The number of newlines in the output must match the input.
+type SourceStyleFunc func(src string) string
+
 // Renderer renders annotated source code. Use [New] to create a Renderer.
 type Renderer struct {
 	// Style controls the visual styling applied to each element of the output.
@@ -83,6 +88,11 @@ type Renderer struct {
 	Before int
 	// After is the default number of lines to display after each labeled line.
 	After int
+
+	// SourceStyle applies syntax highlighting or other styling to the source code.
+	// When set, [Style.SpanCode], [Style.NonSpanCode], and [LabelStyle.SpanCode]
+	// are ignored for source code lines.
+	SourceStyle SourceStyleFunc
 }
 
 // New creates a new [Renderer] with the given options.
@@ -367,6 +377,21 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 	if vis.maxNum == 0 {
 		return nil
 	}
+
+	var highlightedLines []string
+	if r.SourceStyle != nil {
+		texts := make([]string, len(lines))
+		for i, ln := range lines {
+			texts[i] = ln.text
+		}
+		expanded := strings.Join(texts, "\n")
+		highlighted := strings.TrimRight(r.SourceStyle(expanded), "\n")
+		highlightedLines = strings.Split(highlighted, "\n")
+		if len(highlightedLines) != len(lines) {
+			return fmt.Errorf("source styler returned %d lines, expected %d", len(highlightedLines), len(lines))
+		}
+	}
+
 	lineNumWidth := len(fmt.Sprintf("%d", vis.maxNum))
 	padding := strings.Repeat(" ", lineNumWidth)
 
@@ -412,7 +437,12 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 		styledLineNum := resolveStyle(lineNumStr, labelLineNumStyle, r.Style.LineNumber)
 		styledSep := resolveStyle("|", labelSepStyle, r.Style.Separator)
 
-		styledCode := segmentCodeLine(ln, ll, r.Style.SpanCode, r.Style.NonSpanCode)
+		var styledCode string
+		if highlightedLines != nil {
+			styledCode = highlightedLines[li]
+		} else {
+			styledCode = segmentCodeLine(ln, ll, r.Style.SpanCode, r.Style.NonSpanCode)
+		}
 		if _, err := fmt.Fprintf(w, "%s %s %s\n", styledLineNum, styledSep, styledCode); err != nil {
 			return err
 		}

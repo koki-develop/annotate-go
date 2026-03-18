@@ -806,3 +806,188 @@ func TestRender_FilterMixedOverrides(t *testing.T) {
 		"...\n"
 	assert.Equal(t, expected, got)
 }
+
+func TestRender_SourceStyle(t *testing.T) {
+	styler := func(src string) string {
+		var lines []string
+		for _, line := range strings.Split(src, "\n") {
+			lines = append(lines, "\033[32m"+line+"\033[0m")
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	r := New(WithSourceStyle(styler))
+	src := []byte("foo: bar")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 8}, Marker: MarkerDash, Text: "whole line"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | \033[32mfoo: bar\033[0m\n  | -------- whole line\n", got)
+}
+
+func TestRender_SourceStyle_MultiLine(t *testing.T) {
+	styler := func(src string) string {
+		var lines []string
+		for _, line := range strings.Split(src, "\n") {
+			lines = append(lines, "\033[33m"+line+"\033[0m")
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	r := New(WithSourceStyle(styler))
+	src := []byte("foo\nbar\nbaz")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "first"},
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerTilde, Text: "last"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	expected := "" +
+		"1 | \033[33mfoo\033[0m\n" +
+		"  | --- first\n" +
+		"...\n" +
+		"3 | \033[33mbaz\033[0m\n" +
+		"  | ~~~ last\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_SourceStyle_IgnoresSpanCodeStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+	styler := func(src string) string {
+		return "\033[32m" + src + "\033[0m"
+	}
+
+	r := New(
+		WithSourceStyle(styler),
+		WithStyle(Style{
+			SpanCode:    bracket,
+			NonSpanCode: bracket,
+			Marker:      bracket,
+		}),
+	)
+	src := []byte("foo")
+	labels := []Label{
+		{
+			Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "x",
+			Style: LabelStyle{SpanCode: bracket},
+		},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | \033[32mfoo\033[0m\n  | [---] x\n", got)
+}
+
+func TestRender_SourceStyle_TrailingNewline(t *testing.T) {
+	styler := func(src string) string {
+		return "\033[32m" + src + "\033[0m\n"
+	}
+
+	r := New(WithSourceStyle(styler))
+	src := []byte("foo")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "x"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | \033[32mfoo\033[0m\n  | --- x\n", got)
+}
+
+func TestRender_SourceStyle_LineCountMismatch(t *testing.T) {
+	styler := func(src string) string {
+		return src + "\nextra line"
+	}
+
+	r := New(WithSourceStyle(styler))
+	src := []byte("foo")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "x"},
+	}
+	_, err := r.Render(src, labels)
+	assert.Error(t, err)
+}
+
+func TestRender_SourceStyle_TabExpansion(t *testing.T) {
+	var received string
+	styler := func(src string) string {
+		received = src
+		return "\033[32m" + src + "\033[0m"
+	}
+
+	r := New(WithSourceStyle(styler))
+	src := []byte("\tfoo")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 4}, Marker: MarkerDash, Text: "label"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "    foo", received)
+	assert.Equal(t, "1 | \033[32m    foo\033[0m\n  | ------- label\n", got)
+}
+
+func TestRender_SourceStyle_WithContext(t *testing.T) {
+	styler := func(src string) string {
+		var lines []string
+		for _, line := range strings.Split(src, "\n") {
+			lines = append(lines, "\033[32m"+line+"\033[0m")
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	r := New(WithSourceStyle(styler), WithBefore(1), WithAfter(1))
+	src := []byte("aaa\nbbb\nccc\nddd\neee")
+	labels := []Label{
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerDash, Text: "middle"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	expected := "" +
+		"...\n" +
+		"2 | \033[32mbbb\033[0m\n" +
+		"3 | \033[32mccc\033[0m\n" +
+		"  | --- middle\n" +
+		"4 | \033[32mddd\033[0m\n" +
+		"...\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_SourceStyle_MultiLineSpan(t *testing.T) {
+	styler := func(src string) string {
+		var lines []string
+		for _, line := range strings.Split(src, "\n") {
+			lines = append(lines, "\033[33m"+line+"\033[0m")
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	r := New(WithSourceStyle(styler))
+	src := []byte("aaa\nbbb\nccc")
+	labels := []Label{
+		{Span: Span{Start: 1, End: 10}, Marker: MarkerDash, Text: "spans three lines"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	expected := "" +
+		"1 | \033[33maaa\033[0m\n" +
+		"  |  --\n" +
+		"2 | \033[33mbbb\033[0m\n" +
+		"  | ---\n" +
+		"3 | \033[33mccc\033[0m\n" +
+		"  | -- spans three lines\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_SourceStyle_MultipleTrailingNewlines(t *testing.T) {
+	styler := func(src string) string {
+		return "\033[32m" + src + "\033[0m\n\n\n"
+	}
+
+	r := New(WithSourceStyle(styler))
+	src := []byte("foo")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "x"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | \033[32mfoo\033[0m\n  | --- x\n", got)
+}

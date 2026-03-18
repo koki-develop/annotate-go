@@ -31,3 +31,13 @@ func WithAfter(n int) Option {
 		r.After = n
 	}
 }
+
+// WithSourceStyle returns an [Option] that sets a function to apply
+// syntax highlighting or other styling to the source code.
+// When set, [Style.SpanCode], [Style.NonSpanCode], and [LabelStyle.SpanCode]
+// are ignored for source code lines.
+func WithSourceStyle(fn SourceStyleFunc) Option {
+	return func(r *Renderer) {
+		r.SourceStyle = fn
+	}
+}
