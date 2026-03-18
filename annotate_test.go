@@ -9,9 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:fix inline
-func intPtr(n int) *int { return new(n) }
-
 func TestRender_EmptySource(t *testing.T) {
 	r := New()
 	got, err := r.Render([]byte{}, nil)
