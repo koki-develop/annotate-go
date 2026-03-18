@@ -67,8 +67,12 @@ func resolveStyle(s string, labelStyle, globalStyle StyleFunc) string {
 	return applyStyle(s, globalStyle)
 }
 
-func New() *Renderer {
-	return &Renderer{}
+func New(opts ...Option) *Renderer {
+	r := &Renderer{}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 func (r *Renderer) Render(src []byte, labels []Label) (string, error) {

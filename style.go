@@ -58,6 +58,14 @@ var LabelStyleHint = LabelStyle{
 	LabelText: Dim,
 }
 
+type Option func(*Renderer)
+
+func WithStyle(s Style) Option {
+	return func(r *Renderer) {
+		r.Style = s
+	}
+}
+
 func ComposeStyles(fns ...StyleFunc) StyleFunc {
 	return func(s string) string {
 		for i := len(fns) - 1; i >= 0; i-- {

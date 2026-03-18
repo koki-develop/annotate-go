@@ -105,3 +105,15 @@ func TestLabelStylePresets_Output(t *testing.T) {
 	assert.Equal(t, "\033[2mtest\033[0m", LabelStyleHint.Marker("test"))
 	assert.Equal(t, "\033[2mtest\033[0m", LabelStyleHint.LabelText("test"))
 }
+
+func TestWithStyle(t *testing.T) {
+	r := New(WithStyle(DefaultStyle))
+	assert.NotNil(t, r.Style.LineNumber)
+	assert.NotNil(t, r.Style.Separator)
+}
+
+func TestNewWithoutOptions(t *testing.T) {
+	r := New()
+	assert.Nil(t, r.Style.LineNumber)
+	assert.Nil(t, r.Style.Separator)
+}
