@@ -335,9 +335,16 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	visible := computeVisibleLines(lines, labelMap, r.Before, r.After)
 
 	maxLineNum := 0
+	firstVisible, lastVisible := -1, -1
 	for li, ln := range lines {
-		if visible[li] && ln.number > maxLineNum {
-			maxLineNum = ln.number
+		if visible[li] {
+			if ln.number > maxLineNum {
+				maxLineNum = ln.number
+			}
+			if firstVisible < 0 {
+				firstVisible = li
+			}
+			lastVisible = li
 		}
 	}
 	if maxLineNum == 0 {
@@ -346,6 +353,23 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	lineNumWidth := len(fmt.Sprintf("%d", maxLineNum))
 	padding := strings.Repeat(" ", lineNumWidth)
 
+	writeEllipsis := func() error {
+		ellipsis := "..."
+		if lineNumWidth > 3 {
+			ellipsis += strings.Repeat(" ", lineNumWidth-3)
+		}
+		styledEllipsis := applyStyle(ellipsis, r.Style.Ellipsis)
+		_, err := fmt.Fprintf(w, "%s\n", styledEllipsis)
+		return err
+	}
+
+	// Leading ellipsis: there are non-visible lines before the first visible line.
+	if firstVisible > 0 {
+		if err := writeEllipsis(); err != nil {
+			return err
+		}
+	}
+
 	prevVisibleIdx := -1
 	for li, ln := range lines {
 		if !visible[li] {
@@ -353,12 +377,7 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 		}
 
 		if prevVisibleIdx >= 0 && li > prevVisibleIdx+1 {
-			ellipsis := "..."
-			if lineNumWidth > 3 {
-				ellipsis += strings.Repeat(" ", lineNumWidth-3)
-			}
-			styledEllipsis := applyStyle(ellipsis, r.Style.Ellipsis)
-			if _, err := fmt.Fprintf(w, "%s\n", styledEllipsis); err != nil {
+			if err := writeEllipsis(); err != nil {
 				return err
 			}
 		}
@@ -422,5 +441,13 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 			}
 		}
 	}
+
+	// Trailing ellipsis: there are non-visible lines after the last visible line.
+	if lastVisible >= 0 && lastVisible < len(lines)-1 {
+		if err := writeEllipsis(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

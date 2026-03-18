@@ -300,7 +300,7 @@ func TestRender_MultiDigitLineNumbers_WithLabel(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "10 | 10\n   | -- last line\n", got)
+	assert.Equal(t, "...\n10 | 10\n   | -- last line\n", got)
 }
 
 func TestRender_ArbitraryMarker(t *testing.T) {
@@ -507,7 +507,8 @@ func TestRender_FullStyleIntegration(t *testing.T) {
 	// Line 2 has no label and is filtered out
 	expected := "" +
 		"<ln:1> <sep:|> <non:foo: ><span:bar>\n" +
-		"  <sep:|>      <mark:---> <text:value>\n"
+		"  <sep:|>      <mark:---> <text:value>\n" +
+		"...\n"
 	assert.Equal(t, expected, got)
 }
 
@@ -597,7 +598,7 @@ func TestRender_FilterWithBefore(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "2 | bbb\n3 | ccc\n  | --- middle\n", got)
+	assert.Equal(t, "...\n2 | bbb\n3 | ccc\n  | --- middle\n...\n", got)
 }
 
 func TestRender_FilterWithAfter(t *testing.T) {
@@ -608,7 +609,7 @@ func TestRender_FilterWithAfter(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "3 | ccc\n  | --- middle\n4 | ddd\n", got)
+	assert.Equal(t, "...\n3 | ccc\n  | --- middle\n4 | ddd\n...\n", got)
 }
 
 func TestRender_FilterWithBeforeAndAfter(t *testing.T) {
@@ -619,7 +620,7 @@ func TestRender_FilterWithBeforeAndAfter(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "2 | bbb\n3 | ccc\n  | --- middle\n4 | ddd\n", got)
+	assert.Equal(t, "...\n2 | bbb\n3 | ccc\n  | --- middle\n4 | ddd\n...\n", got)
 }
 
 func TestRender_FilterPerLabelOverride(t *testing.T) {
@@ -630,7 +631,7 @@ func TestRender_FilterPerLabelOverride(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "2 | bbb\n3 | ccc\n  | --- with context\n", got)
+	assert.Equal(t, "...\n2 | bbb\n3 | ccc\n  | --- with context\n...\n", got)
 }
 
 func TestRender_FilterPerLabelOverrideZero(t *testing.T) {
@@ -641,7 +642,7 @@ func TestRender_FilterPerLabelOverrideZero(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "3 | ccc\n  | --- no context\n", got)
+	assert.Equal(t, "...\n3 | ccc\n  | --- no context\n...\n", got)
 }
 
 func TestRender_FilterEllipsisWideLineNumbers(t *testing.T) {
@@ -682,6 +683,18 @@ func TestRender_FilterEllipsisStyle(t *testing.T) {
 	assert.Equal(t, "1 | aaa\n  | --- first\n[...]\n5 | eee\n  | ~~~ last\n", got)
 }
 
+func TestRender_FilterEllipsisStyle_LeadingTrailing(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+	r := New(WithStyle(Style{Ellipsis: bracket}))
+	src := []byte("aaa\nbbb\nccc")
+	labels := []Label{
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerDash, Text: "middle"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "[...]\n2 | bbb\n  | --- middle\n[...]\n", got)
+}
+
 func TestRender_FilterAdjacentLabels(t *testing.T) {
 	r := New()
 	src := []byte("aaa\nbbb\nccc")
@@ -691,7 +704,7 @@ func TestRender_FilterAdjacentLabels(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "1 | aaa\n  | --- first\n2 | bbb\n  | ~~~ second\n", got)
+	assert.Equal(t, "1 | aaa\n  | --- first\n2 | bbb\n  | ~~~ second\n...\n", got)
 }
 
 func TestRender_FilterOverlappingContext(t *testing.T) {
@@ -706,7 +719,7 @@ func TestRender_FilterOverlappingContext(t *testing.T) {
 	assert.Equal(t, "1 | aaa\n2 | bbb\n  | --- second\n3 | ccc\n4 | ddd\n  | ~~~ fourth\n5 | eee\n", got)
 }
 
-func TestRender_FilterNoLeadingTrailingEllipsis(t *testing.T) {
+func TestRender_FilterLeadingTrailingEllipsis(t *testing.T) {
 	r := New()
 	src := []byte("aaa\nbbb\nccc\nddd\neee")
 	labels := []Label{
@@ -714,7 +727,7 @@ func TestRender_FilterNoLeadingTrailingEllipsis(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "3 | ccc\n  | --- middle\n", got)
+	assert.Equal(t, "...\n3 | ccc\n  | --- middle\n...\n", got)
 }
 
 func TestRender_FilterLineNumberWidth(t *testing.T) {
@@ -725,7 +738,7 @@ func TestRender_FilterLineNumberWidth(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "2 | 2\n  | - line 2\n", got)
+	assert.Equal(t, "...\n2 | 2\n  | - line 2\n...\n", got)
 }
 
 func TestRender_FilterMultiLineSpanWithContext(t *testing.T) {
@@ -740,12 +753,14 @@ func TestRender_FilterMultiLineSpanWithContext(t *testing.T) {
 	// Before=1 applies to line 3 → line 2 visible
 	// After=1 applies to line 4 → line 5 visible
 	expected := "" +
+		"...\n" +
 		"2 | bbb\n" +
 		"3 | ccc\n" +
 		"  | ---\n" +
 		"4 | ddd\n" +
 		"  | --- two lines\n" +
-		"5 | eee\n"
+		"5 | eee\n" +
+		"...\n"
 	assert.Equal(t, expected, got)
 }
 
@@ -758,7 +773,7 @@ func TestRender_FilterPerLabelNegativeClamped(t *testing.T) {
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
 	// Negative values clamped to 0, so only the labeled line is shown
-	assert.Equal(t, "2 | bbb\n  | --- middle\n", got)
+	assert.Equal(t, "...\n2 | bbb\n  | --- middle\n...\n", got)
 }
 
 func TestRender_FilterPerLabelAfterOverride(t *testing.T) {
@@ -769,7 +784,7 @@ func TestRender_FilterPerLabelAfterOverride(t *testing.T) {
 	}
 	got, err := r.Render(src, labels)
 	require.NoError(t, err)
-	assert.Equal(t, "2 | bbb\n  | --- with after\n3 | ccc\n4 | ddd\n", got)
+	assert.Equal(t, "...\n2 | bbb\n  | --- with after\n3 | ccc\n4 | ddd\n...\n", got)
 }
 
 func TestRender_FilterMixedOverrides(t *testing.T) {
@@ -784,10 +799,12 @@ func TestRender_FilterMixedOverrides(t *testing.T) {
 	// First label: Before overridden to 0, only line 2
 	// Second label: Before=1 from renderer default, lines 3 and 4
 	expected := "" +
+		"...\n" +
 		"2 | bbb\n" +
 		"  | --- override\n" +
 		"3 | ccc\n" +
 		"4 | ddd\n" +
-		"  | ~~~ default\n"
+		"  | ~~~ default\n" +
+		"...\n"
 	assert.Equal(t, expected, got)
 }
