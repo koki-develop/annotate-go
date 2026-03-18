@@ -210,7 +210,8 @@ func segmentCodeLine(ln line, ll []lineLabel, globalSpanCode, globalNonSpanCode 
 		})
 	}
 
-	// Remove overlaps (first wins)
+	// Remove overlaps (first wins).
+	// Precondition: ll is sorted by startInLine ascending, so ranges are also ordered by start.
 	var merged []spanRange
 	for _, r := range ranges {
 		clipped := r
