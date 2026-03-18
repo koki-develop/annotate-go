@@ -238,19 +238,17 @@ func segmentCodeLine(ln line, ll []lineLabel, globalSpanCode, globalNonSpanCode 
 	}
 
 	// Remove overlaps (first wins).
-	// Precondition: ll is sorted by startInLine ascending, so ranges are also ordered by start.
+	// Precondition: ranges are sorted by start ascending, so we only need to
+	// check against the previous merged range's end.
 	var merged []spanRange
 	for _, r := range ranges {
-		clipped := r
-		for _, m := range merged {
-			if clipped.start < m.end && clipped.end > m.start {
-				if clipped.start >= m.start {
-					clipped.start = m.end
-				}
+		if len(merged) > 0 {
+			if prev := merged[len(merged)-1]; r.start < prev.end {
+				r.start = prev.end
 			}
 		}
-		if clipped.start < clipped.end {
-			merged = append(merged, clipped)
+		if r.start < r.end {
+			merged = append(merged, r)
 		}
 	}
 
@@ -320,13 +318,7 @@ func computeVisibleLines(lines []line, labelMap map[int][]lineLabel, defaultBefo
 	return visibleLines{flags: flags, first: first, last: last, maxNum: maxNum}
 }
 
-// Write renders the annotated source code and writes the output to w.
-//
-// Each label's [Span] must satisfy: 0 <= Start < End <= len(src).
-// An error is returned if any label has an invalid span or if writing to w fails.
-// Only lines covered by labels (plus surrounding Before/After context lines) are output.
-// If labels is empty, nothing is written.
-func validateLabels(src []byte, labels []Label) error {
+func prepareLabels(src []byte, labels []Label) error {
 	for i := range labels {
 		if labels[i].Marker == 0 {
 			labels[i].Marker = MarkerDash
@@ -345,12 +337,18 @@ func validateLabels(src []byte, labels []Label) error {
 	return nil
 }
 
+// Write renders the annotated source code and writes the output to w.
+//
+// Each label's [Span] must satisfy: 0 <= Start < End <= len(src).
+// An error is returned if any label has an invalid span or if writing to w fails.
+// Only lines covered by labels (plus surrounding Before/After context lines) are output.
+// If labels is empty, nothing is written.
 func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	if len(labels) == 0 {
 		return nil
 	}
 
-	if err := validateLabels(src, labels); err != nil {
+	if err := prepareLabels(src, labels); err != nil {
 		return err
 	}
 
@@ -372,18 +370,8 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 	lineNumWidth := len(fmt.Sprintf("%d", vis.maxNum))
 	padding := strings.Repeat(" ", lineNumWidth)
 
-	writeEllipsis := func() error {
-		ellipsis := "..."
-		if lineNumWidth > 3 {
-			ellipsis += strings.Repeat(" ", lineNumWidth-3)
-		}
-		styledEllipsis := applyStyle(ellipsis, r.Style.Ellipsis)
-		_, err := fmt.Fprintf(w, "%s\n", styledEllipsis)
-		return err
-	}
-
 	if vis.first > 0 {
-		if err := writeEllipsis(); err != nil {
+		if err := r.writeEllipsis(w, lineNumWidth); err != nil {
 			return err
 		}
 	}
@@ -395,7 +383,7 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 		}
 
 		if prevVisibleIdx >= 0 && li > prevVisibleIdx+1 {
-			if err := writeEllipsis(); err != nil {
+			if err := r.writeEllipsis(w, lineNumWidth); err != nil {
 				return err
 			}
 		}
@@ -437,12 +425,21 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 	}
 
 	if vis.last >= 0 && vis.last < len(lines)-1 {
-		if err := writeEllipsis(); err != nil {
+		if err := r.writeEllipsis(w, lineNumWidth); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (r *Renderer) writeEllipsis(w io.Writer, lineNumWidth int) error {
+	ellipsis := "..."
+	if lineNumWidth > 3 {
+		ellipsis += strings.Repeat(" ", lineNumWidth-3)
+	}
+	_, err := fmt.Fprintf(w, "%s\n", applyStyle(ellipsis, r.Style.Ellipsis))
+	return err
 }
 
 func (r *Renderer) writeMarkerLines(w io.Writer, padding string, ln line, ll []lineLabel) error {
