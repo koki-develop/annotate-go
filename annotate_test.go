@@ -564,3 +564,98 @@ func TestRender_SpanCodeStyle_OverlappingLabels(t *testing.T) {
 	// ソート順: Span{0,3} (短い) が先 → "foo" = blue, "bar" = red
 	assert.Equal(t, "1 | B(foo)R(bar)\n  | ~~~ first\n  | ------ all\n", got)
 }
+
+func TestRender_FullStyleIntegration(t *testing.T) {
+	r := New()
+	r.Style = Style{
+		LineNumber:  StyleFunc(func(s string) string { return "<ln:" + s + ">" }),
+		Separator:   StyleFunc(func(s string) string { return "<sep:" + s + ">" }),
+		SpanCode:    StyleFunc(func(s string) string { return "<span:" + s + ">" }),
+		NonSpanCode: StyleFunc(func(s string) string { return "<non:" + s + ">" }),
+		Marker:      StyleFunc(func(s string) string { return "<mark:" + s + ">" }),
+		LabelText:   StyleFunc(func(s string) string { return "<text:" + s + ">" }),
+	}
+
+	src := []byte("foo: bar\nbaz: qux")
+	labels := []Label{
+		{Span: Span{Start: 5, End: 8}, Marker: MarkerDash, Text: "value"},
+	}
+
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+
+	// Line 1 has a label on "bar" (bytes 5-8)
+	// Line 2 has no label
+	// Marker line: padding (unstyled spaces), styled separator, leading spaces, styled markers, styled text
+	expected := "" +
+		"<ln:1> <sep:|> <non:foo: ><span:bar>\n" +
+		"  <sep:|>      <mark:---> <text:value>\n" +
+		"<ln:2> <sep:|> <non:baz: qux>\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_StyleIntegration_LabelOverrideAndFallback(t *testing.T) {
+	global := StyleFunc(func(s string) string { return "G(" + s + ")" })
+	local := StyleFunc(func(s string) string { return "L(" + s + ")" })
+
+	r := New()
+	r.Style = Style{
+		LineNumber: global,
+		Separator:  global,
+		SpanCode:   global,
+		Marker:     global,
+		LabelText:  global,
+	}
+
+	src := []byte("foo bar")
+	labels := []Label{
+		{
+			Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "overridden",
+			Style: LabelStyle{
+				LineNumber: local, Separator: local,
+				SpanCode: local, Marker: local, LabelText: local,
+			},
+		},
+		{
+			Span: Span{Start: 4, End: 7}, Marker: MarkerTilde, Text: "global fallback",
+			// Style 未設定 → グローバルにフォールバック
+		},
+	}
+
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+
+	// First label (startInLine=0) overrides line number and separator for the code line.
+	// "foo" uses local SpanCode, " " is non-span (no NonSpanCode set so passthrough), "bar" uses global SpanCode.
+	// First marker line uses local styles, second uses global styles.
+	expected := "" +
+		"L(1) L(|) L(foo) G(bar)\n" +
+		"  L(|) L(---) L(overridden)\n" +
+		"  G(|)     G(~~~) G(global fallback)\n"
+	assert.Equal(t, expected, got)
+}
+
+func TestRender_StyleIntegration_MultiLineSpan(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+
+	r := New()
+	r.Style = Style{SpanCode: bracket, Marker: bracket}
+
+	src := []byte("aaa\nbbb\nccc")
+	labels := []Label{
+		{Span: Span{Start: 1, End: 10}, Marker: MarkerDash, Text: "spans three"},
+	}
+
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+
+	// Span covers bytes 1-10: "aa" on line 1, all of "bbb" on line 2, "cc" on line 3
+	expected := "" +
+		"1 | a[aa]\n" +
+		"  |  [--]\n" +
+		"2 | [bbb]\n" +
+		"  | [---]\n" +
+		"3 | [cc]c\n" +
+		"  | [--] spans three\n"
+	assert.Equal(t, expected, got)
+}
