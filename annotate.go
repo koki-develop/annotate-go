@@ -23,14 +23,34 @@ const (
 	MarkerCaret LabelMarker = '^'
 )
 
+type StyleFunc func(string) string
+
+type Style struct {
+	LineNumber  StyleFunc
+	Separator   StyleFunc
+	SpanCode    StyleFunc
+	NonSpanCode StyleFunc
+	Marker      StyleFunc
+	LabelText   StyleFunc
+}
+
+type LabelStyle struct {
+	LineNumber StyleFunc
+	Separator  StyleFunc
+	SpanCode   StyleFunc
+	Marker     StyleFunc
+	LabelText  StyleFunc
+}
+
 type Label struct {
 	Span   Span
 	Marker LabelMarker
 	Text   string
+	Style  LabelStyle
 }
 
 type Renderer struct {
-	//
+	Style Style
 }
 
 func New() *Renderer {
