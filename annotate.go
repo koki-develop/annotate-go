@@ -53,6 +53,20 @@ type Renderer struct {
 	Style Style
 }
 
+func applyStyle(s string, fn StyleFunc) string {
+	if fn == nil || s == "" {
+		return s
+	}
+	return fn(s)
+}
+
+func resolveStyle(s string, labelStyle, globalStyle StyleFunc) string {
+	if labelStyle != nil {
+		return applyStyle(s, labelStyle)
+	}
+	return applyStyle(s, globalStyle)
+}
+
 func New() *Renderer {
 	return &Renderer{}
 }
