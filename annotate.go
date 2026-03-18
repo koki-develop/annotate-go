@@ -305,11 +305,7 @@ func computeVisibleLines(lines []line, labelMap map[int][]lineLabel, defaultBefo
 // An error is returned if any label has an invalid span or if writing to w fails.
 // Only lines covered by labels (plus surrounding Before/After context lines) are output.
 // If labels is empty, nothing is written.
-func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
-	if len(labels) == 0 {
-		return nil
-	}
-
+func validateLabels(src []byte, labels []Label) error {
 	for i := range labels {
 		if labels[i].Marker == 0 {
 			labels[i].Marker = MarkerDash
@@ -325,6 +321,17 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 			return fmt.Errorf("label %d: span start %d must be less than end %d", i, lbl.Span.Start, lbl.Span.End)
 		}
 	}
+	return nil
+}
+
+func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
+	if len(labels) == 0 {
+		return nil
+	}
+
+	if err := validateLabels(src, labels); err != nil {
+		return err
+	}
 
 	lines := parseLines(src)
 	if len(lines) == 0 {
@@ -334,6 +341,10 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	labelMap := mapLabelsToLines(lines, labels)
 	visible := computeVisibleLines(lines, labelMap, r.Before, r.After)
 
+	return r.writeOutput(w, lines, labelMap, visible)
+}
+
+func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lineLabel, visible []bool) error {
 	maxLineNum := 0
 	firstVisible, lastVisible := -1, -1
 	for li, ln := range lines {
