@@ -188,6 +188,67 @@ func mapLabelsToLines(lines []line, labels []Label) map[int][]lineLabel {
 	return result
 }
 
+func segmentCodeLine(ln line, ll []lineLabel, globalSpanCode, globalNonSpanCode StyleFunc) string {
+	if len(ll) == 0 {
+		return applyStyle(ln.text, globalNonSpanCode)
+	}
+
+	// Build span ranges from labels (already sorted by caller)
+	type spanRange struct {
+		start int // expanded byte offset
+		end   int // expanded byte offset
+		style StyleFunc
+	}
+	var ranges []spanRange
+	for _, lbl := range ll {
+		expandedStart := ln.offsetMap[lbl.startInLine]
+		expandedEnd := ln.offsetMap[lbl.endInLine]
+		ranges = append(ranges, spanRange{
+			start: expandedStart,
+			end:   expandedEnd,
+			style: lbl.label.Style.SpanCode,
+		})
+	}
+
+	// Remove overlaps (first wins)
+	var merged []spanRange
+	for _, r := range ranges {
+		clipped := r
+		for _, m := range merged {
+			if clipped.start < m.end && clipped.end > m.start {
+				if clipped.start >= m.start {
+					clipped.start = m.end
+				}
+			}
+		}
+		if clipped.start < clipped.end {
+			merged = append(merged, clipped)
+		}
+	}
+
+	// Build output by interleaving non-span and span segments
+	var buf strings.Builder
+	pos := 0
+	for _, r := range merged {
+		if pos < r.start {
+			nonSpan := ln.text[pos:r.start]
+			buf.WriteString(applyStyle(nonSpan, globalNonSpanCode))
+		}
+		spanText := ln.text[r.start:r.end]
+		style := r.style
+		if style == nil {
+			style = globalSpanCode
+		}
+		buf.WriteString(applyStyle(spanText, style))
+		pos = r.end
+	}
+	if pos < len(ln.text) {
+		nonSpan := ln.text[pos:]
+		buf.WriteString(applyStyle(nonSpan, globalNonSpanCode))
+	}
+	return buf.String()
+}
+
 func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	if len(src) == 0 && len(labels) == 0 {
 		return nil
@@ -245,7 +306,8 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 		styledLineNum := resolveStyle(lineNumStr, labelLineNumStyle, r.Style.LineNumber)
 		styledSep := resolveStyle("|", labelSepStyle, r.Style.Separator)
 
-		if _, err := fmt.Fprintf(w, "%s %s %s\n", styledLineNum, styledSep, ln.text); err != nil {
+		styledCode := segmentCodeLine(ln, ll, r.Style.SpanCode, r.Style.NonSpanCode)
+		if _, err := fmt.Fprintf(w, "%s %s %s\n", styledLineNum, styledSep, styledCode); err != nil {
 			return err
 		}
 

@@ -492,3 +492,75 @@ func TestRender_MultipleLinesNoLabels(t *testing.T) {
 3 | baz
 `, got)
 }
+
+func TestRender_SpanCodeStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+
+	r := New()
+	r.Style = Style{SpanCode: bracket}
+	src := []byte("foo: bar")
+	labels := []Label{
+		{Span: Span{Start: 5, End: 8}, Marker: MarkerDash, Text: "val"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	// "foo: " は非span、"bar" は span
+	assert.Equal(t, "1 | foo: [bar]\n  |      --- val\n", got)
+}
+
+func TestRender_NonSpanCodeStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+
+	r := New()
+	r.Style = Style{NonSpanCode: bracket}
+	src := []byte("foo: bar")
+	labels := []Label{
+		{Span: Span{Start: 5, End: 8}, Marker: MarkerDash, Text: "val"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | [foo: ]bar\n  |      --- val\n", got)
+}
+
+func TestRender_NoLabelLine_NonSpanCodeStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+
+	r := New()
+	r.Style = Style{NonSpanCode: bracket}
+	src := []byte("foo")
+	got, err := r.Render(src, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | [foo]\n", got)
+}
+
+func TestRender_SpanCodeStyle_MultipleLabels(t *testing.T) {
+	red := StyleFunc(func(s string) string { return "R(" + s + ")" })
+	blue := StyleFunc(func(s string) string { return "B(" + s + ")" })
+
+	r := New()
+	src := []byte("foobarbaz")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "a", Style: LabelStyle{SpanCode: red}},
+		{Span: Span{Start: 6, End: 9}, Marker: MarkerTilde, Text: "b", Style: LabelStyle{SpanCode: blue}},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	// "foo" = red, "bar" = 非span, "baz" = blue
+	assert.Equal(t, "1 | R(foo)barB(baz)\n  | --- a\n  |       ~~~ b\n", got)
+}
+
+func TestRender_SpanCodeStyle_OverlappingLabels(t *testing.T) {
+	red := StyleFunc(func(s string) string { return "R(" + s + ")" })
+	blue := StyleFunc(func(s string) string { return "B(" + s + ")" })
+
+	r := New()
+	src := []byte("foobar")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 6}, Marker: MarkerDash, Text: "all", Style: LabelStyle{SpanCode: red}},
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerTilde, Text: "first", Style: LabelStyle{SpanCode: blue}},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	// ソート順: Span{0,3} (短い) が先 → "foo" = blue, "bar" = red
+	assert.Equal(t, "1 | B(foo)R(bar)\n  | ~~~ first\n  | ------ all\n", got)
+}
