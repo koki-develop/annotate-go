@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/koki-develop/annotate-go/compare/v0.1.0...v0.2.0) (2026-03-18)
+
+
+### Features
+
+* show ellipsis at leading and trailing positions when lines are omitted ([1731e20](https://github.com/koki-develop/annotate-go/commit/1731e205292fce82dba67790cd07f03be44dbd51))
+
 ## [0.1.0](https://github.com/koki-develop/annotate-go/compare/v0.0.1...v0.1.0) (2026-03-18)
 
 
