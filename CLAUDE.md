@@ -28,15 +28,25 @@ golangci-lint run
 
 ## Architecture
 
-All code lives in `annotate.go` (single file, single package). The rendering pipeline:
+Single package (`package annotate`), three files:
+
+- `annotate.go` — rendering pipeline (`Renderer`, `Render`, `Write`)
+- `style.go` — style type definitions (`StyleFunc`, `Style`, `LabelStyle`), ANSI StyleFunc variables, presets, `ComposeStyles`
+- `option.go` — functional options (`Option`, `WithStyle`)
+
+### Rendering pipeline
 
 1. **Parse lines** — split source bytes by `\n`, record byte offsets, expand tabs (fixed width 4)
 2. **Map labels to lines** — for each label, determine which lines its Span covers; multi-line spans are split into per-line sub-spans
-3. **Generate output** — for each line, emit `{line number} | {text}` followed by marker lines for any labels on that line
+3. **Generate output** — for each line, emit `{line number} | {text}` followed by marker lines for any labels on that line. Style is applied after all width/position calculations.
 
-Key types:
+### Key types
+
 - `Span` — byte offset range `[Start, End)` into source
-- `Label` — a Span + marker character + annotation text
+- `Label` — a Span + marker character + annotation text + optional `LabelStyle`
 - `Renderer` — entry point; `Render()` returns string, `Write()` writes to `io.Writer`
+- `StyleFunc` — `func(string) string` callback for styling output elements
+- `Style` — global style config (6 elements: LineNumber, Separator, SpanCode, NonSpanCode, Marker, LabelText)
+- `LabelStyle` — per-label style override (5 elements, no NonSpanCode)
 
 Display width (CJK wide characters) is handled via `go-runewidth`. Marker positioning uses display columns, not byte counts.
