@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/koki-develop/annotate-go/compare/v0.2.0...v0.3.0) (2026-03-18)
+
+
+### Features
+
+* add SourceStyleFunc for syntax highlighting support ([0a1a561](https://github.com/koki-develop/annotate-go/commit/0a1a5615de44fa00b9da75b3f2078729b7ac1e2e))
+
+
+### Bug Fixes
+
+* remove unused intPtr function from tests ([74d9209](https://github.com/koki-develop/annotate-go/commit/74d9209f83eb2aa2628cf837d9dfa60fbf41e303))
+
 ## [0.2.0](https://github.com/koki-develop/annotate-go/compare/v0.1.0...v0.2.0) (2026-03-18)
 
 
