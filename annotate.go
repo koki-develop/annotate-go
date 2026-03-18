@@ -221,23 +221,37 @@ func (r *Renderer) Write(w io.Writer, src []byte, labels []Label) error {
 	padding := strings.Repeat(" ", lineNumWidth)
 
 	for li, ln := range lines {
-		if _, err := fmt.Fprintf(w, "%*d | %s\n", lineNumWidth, ln.number, ln.text); err != nil {
+		ll := labelMap[li]
+		if len(ll) > 0 {
+			sort.Slice(ll, func(i, j int) bool {
+				if ll[i].startInLine != ll[j].startInLine {
+					return ll[i].startInLine < ll[j].startInLine
+				}
+				si := ll[i].label.Span
+				sj := ll[j].label.Span
+				return (si.End - si.Start) < (sj.End - sj.Start)
+			})
+		}
+
+		lineNumStr := fmt.Sprintf("%*d", lineNumWidth, ln.number)
+
+		// If this line has labels, use the first label's style for line number and separator
+		var labelLineNumStyle, labelSepStyle StyleFunc
+		if len(ll) > 0 {
+			labelLineNumStyle = ll[0].label.Style.LineNumber
+			labelSepStyle = ll[0].label.Style.Separator
+		}
+
+		styledLineNum := resolveStyle(lineNumStr, labelLineNumStyle, r.Style.LineNumber)
+		styledSep := resolveStyle("|", labelSepStyle, r.Style.Separator)
+
+		if _, err := fmt.Fprintf(w, "%s %s %s\n", styledLineNum, styledSep, ln.text); err != nil {
 			return err
 		}
 
-		ll := labelMap[li]
 		if len(ll) == 0 {
 			continue
 		}
-
-		sort.Slice(ll, func(i, j int) bool {
-			if ll[i].startInLine != ll[j].startInLine {
-				return ll[i].startInLine < ll[j].startInLine
-			}
-			si := ll[i].label.Span
-			sj := ll[j].label.Span
-			return (si.End - si.Start) < (sj.End - sj.Start)
-		})
 
 		for _, lbl := range ll {
 			expandedStart := ln.offsetMap[lbl.startInLine]

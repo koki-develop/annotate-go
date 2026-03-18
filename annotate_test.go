@@ -450,6 +450,38 @@ func TestRender_MarkerLineStyle_LabelOverride(t *testing.T) {
 	assert.Equal(t, "1 | foo\n  | L(---) L(label)\n", got)
 }
 
+func TestRender_CodeLineStyle_LineNumberAndSeparator(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+
+	r := New()
+	r.Style = Style{
+		LineNumber: bracket,
+		Separator:  bracket,
+	}
+	src := []byte("foo")
+	got, err := r.Render(src, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "[1] [|] foo\n", got)
+}
+
+func TestRender_CodeLineStyle_LabelOverridesLineNumber(t *testing.T) {
+	global := StyleFunc(func(s string) string { return "G(" + s + ")" })
+	local := StyleFunc(func(s string) string { return "L(" + s + ")" })
+
+	r := New()
+	r.Style = Style{LineNumber: global, Separator: global}
+	src := []byte("foo")
+	labels := []Label{
+		{
+			Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "x",
+			Style: LabelStyle{LineNumber: local, Separator: local},
+		},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "L(1) L(|) foo\n  L(|) --- x\n", got)
+}
+
 func TestRender_MultipleLinesNoLabels(t *testing.T) {
 	r := New()
 	src := []byte("foo\nbar\nbaz")
