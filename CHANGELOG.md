@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/koki-develop/annotate-go/compare/v0.3.0...v0.4.0) (2026-03-19)
+
+
+### Features
+
+* add MarkerNone to suppress marker characters in annotations ([ff38fea](https://github.com/koki-develop/annotate-go/commit/ff38fea0683a1b51220058ddfaa114de73c5834b))
+
 ## [0.3.0](https://github.com/koki-develop/annotate-go/compare/v0.2.0...v0.3.0) (2026-03-18)
 
 
