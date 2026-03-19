@@ -44,9 +44,15 @@ type Span struct {
 
 // LabelMarker is the character used to underline the annotated span.
 // Any rune can be used as a marker, but the package provides common presets.
+// Use [MarkerNone] to suppress marker characters entirely.
 type LabelMarker rune
 
 const (
+	// MarkerNone suppresses marker characters. Only the label text is displayed,
+	// aligned to where the span begins on the last covered line.
+	// If text is empty, no marker line is emitted.
+	// For multi-line spans, no marker lines are emitted on non-last lines.
+	MarkerNone LabelMarker = -1
 	// MarkerDash uses '-' as the marker character.
 	MarkerDash LabelMarker = '-'
 	// MarkerTilde uses '~' as the marker character.
@@ -56,7 +62,7 @@ const (
 )
 
 // Label defines an annotation for a byte range within the source code.
-// Each label points to a [Span], uses a [LabelMarker] to underline that span,
+// Each label points to a [Span], uses a [LabelMarker] to optionally underline that span,
 // and optionally displays descriptive text after the markers.
 //
 // If Marker is zero, [MarkerDash] is used by default.
@@ -474,6 +480,23 @@ func (r *Renderer) writeEllipsis(w io.Writer, lineNumWidth int) error {
 
 func (r *Renderer) writeMarkerLines(w io.Writer, padding string, ln line, ll []lineLabel) error {
 	for _, lbl := range ll {
+		if lbl.label.Marker == MarkerNone {
+			if lbl.isLastLine && lbl.label.Text != "" {
+				expandedStart := ln.offsetMap[lbl.startInLine]
+				textBefore := ln.text[:expandedStart]
+				leadingWidth := runewidth.StringWidth(textBefore)
+				leading := strings.Repeat(" ", leadingWidth)
+
+				styledText := resolveStyle(lbl.label.Text, lbl.label.Style.LabelText, r.Style.LabelText)
+				styledSep := resolveStyle("|", lbl.label.Style.Separator, r.Style.Separator)
+
+				if _, err := fmt.Fprintf(w, "%s %s %s%s\n", padding, styledSep, leading, styledText); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+
 		expandedStart := ln.offsetMap[lbl.startInLine]
 		expandedEnd := ln.offsetMap[lbl.endInLine]
 		textBefore := ln.text[:expandedStart]

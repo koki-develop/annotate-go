@@ -327,6 +327,94 @@ func TestRender_DefaultMarker(t *testing.T) {
 `, got)
 }
 
+func TestRender_MarkerNone_WithText(t *testing.T) {
+	r := New()
+	src := []byte("foo: bar")
+	labels := []Label{
+		{Span: Span{Start: 5, End: 8}, Marker: MarkerNone, Text: "value"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | foo: bar\n  |      value\n", got)
+}
+
+func TestRender_MarkerNone_EmptyText(t *testing.T) {
+	r := New()
+	src := []byte("foo: bar")
+	labels := []Label{
+		{Span: Span{Start: 5, End: 8}, Marker: MarkerNone, Text: ""},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | foo: bar\n", got)
+}
+
+func TestRender_MarkerNone_MultiLineSpan(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc")
+	labels := []Label{
+		{Span: Span{Start: 1, End: 10}, Marker: MarkerNone, Text: "spans three lines"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | aaa\n2 | bbb\n3 | ccc\n  | spans three lines\n", got)
+}
+
+func TestRender_MarkerNone_MultiLineSpan_EmptyText(t *testing.T) {
+	r := New()
+	src := []byte("aaa\nbbb\nccc")
+	labels := []Label{
+		{Span: Span{Start: 1, End: 10}, Marker: MarkerNone, Text: ""},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | aaa\n2 | bbb\n3 | ccc\n", got)
+}
+
+func TestRender_MarkerNone_MixedWithOtherMarkers(t *testing.T) {
+	r := New()
+	src := []byte("foo bar baz")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerDash, Text: "dashed"},
+		{Span: Span{Start: 4, End: 7}, Marker: MarkerNone, Text: "no marker"},
+		{Span: Span{Start: 8, End: 11}, Marker: MarkerTilde, Text: "tilde"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | foo bar baz\n  | --- dashed\n  |     no marker\n  |         ~~~ tilde\n", got)
+}
+
+func TestRender_MarkerNone_WithLabelTextStyle(t *testing.T) {
+	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
+	r := New()
+	r.Style = Style{LabelText: bracket}
+	src := []byte("foo")
+	labels := []Label{
+		{Span: Span{Start: 0, End: 3}, Marker: MarkerNone, Text: "note"},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | foo\n  | [note]\n", got)
+}
+
+func TestRender_MarkerNone_WithLabelStyleOverride(t *testing.T) {
+	global := StyleFunc(func(s string) string { return "G(" + s + ")" })
+	local := StyleFunc(func(s string) string { return "L(" + s + ")" })
+
+	r := New()
+	r.Style = Style{LabelText: global}
+	src := []byte("foo")
+	labels := []Label{
+		{
+			Span: Span{Start: 0, End: 3}, Marker: MarkerNone, Text: "note",
+			Style: LabelStyle{LabelText: local},
+		},
+	}
+	got, err := r.Render(src, labels)
+	require.NoError(t, err)
+	assert.Equal(t, "1 | foo\n  | L(note)\n", got)
+}
+
 func TestRender_MarkerLineStyle(t *testing.T) {
 	bracket := StyleFunc(func(s string) string { return "[" + s + "]" })
 
