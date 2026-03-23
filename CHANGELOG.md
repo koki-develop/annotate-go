@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/koki-develop/annotate-go/compare/v0.4.0...v0.4.1) (2026-03-23)
+
+
+### Bug Fixes
+
+* harden SourceStyle trailing newline handling to reject non-empty extra lines ([7e6cbad](https://github.com/koki-develop/annotate-go/commit/7e6cbaddbc96000e32c16dd20e47bb22488b73b8))
+
 ## [0.4.0](https://github.com/koki-develop/annotate-go/compare/v0.3.0...v0.4.0) (2026-03-19)
 
 
