@@ -391,9 +391,20 @@ func (r *Renderer) writeOutput(w io.Writer, lines []line, labelMap map[int][]lin
 			texts[i] = ln.text
 		}
 		expanded := strings.Join(texts, "\n")
-		highlighted := strings.TrimRight(r.SourceStyle(expanded), "\n")
+		highlighted := r.SourceStyle(expanded)
 		highlightedLines = strings.Split(highlighted, "\n")
-		if len(highlightedLines) != len(lines) {
+		// SourceStyle may append trailing newlines, producing extra empty
+		// elements after splitting. Trim them so highlightedLines stays
+		// aligned with lines. A hard error follows if the counts still
+		// differ.
+		if len(highlightedLines) >= len(lines) {
+			for _, extra := range highlightedLines[len(lines):] {
+				if extra != "" {
+					return fmt.Errorf("source styler returned %d lines, expected %d", len(highlightedLines), len(lines))
+				}
+			}
+			highlightedLines = highlightedLines[:len(lines)]
+		} else {
 			return fmt.Errorf("source styler returned %d lines, expected %d", len(highlightedLines), len(lines))
 		}
 	}
